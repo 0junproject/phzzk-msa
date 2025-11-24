@@ -1,3 +1,6 @@
 [submodule "phzzk-msa-gateway-service"]
 	path = phzzk-msa-gateway-service
 	url = git@github.com:0junproject/phzzk-msa-gateway-service.git
+[submodule "phzzk-msa-eureka-service"]
+	path = phzzk-msa-eureka-service
+	url = git@github.com:0junproject/phzzk-msa-eureka-service.git
