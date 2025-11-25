@@ -4,3 +4,6 @@
 [submodule "phzzk-msa-eureka-service"]
 	path = phzzk-msa-eureka-service
 	url = git@github.com:0junproject/phzzk-msa-eureka-service.git
+[submodule "phzzk-msa-ingest-service"]
+	path = phzzk-msa-ingest-service
+	url = git@github.com:0junproject/phzzk-msa-ingest-service.git

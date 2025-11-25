@@ -1,0 +1,130 @@
+version: '3.8'
+
+# MSA 내부 통신을 위한 네트워크 정의
+networks:
+  msa-network:
+    driver: bridge
+
+services:
+  # ----------------------------------------------------
+  # 1. 인프라 서비스 (고정 포트)
+  # ----------------------------------------------------
+
+  # config-service:
+  #   image: phzzk-msa-config-service:latest # 실제 빌드된 이미지 이름으로 변경
+  #   container_name: config-service
+  #   ports:
+  #     - "8888:8888" # 고정 포트 노출
+  #   networks:
+  #     - msa-network
+  #   environment:
+  #     # 서비스별 설정 파일이 있는 Git Repository URI (예시)
+  #     - GIT_URI=https://github.com/phzzk-msa-org/msa-config-repo
+  #   restart: always
+
+  eureka-service:
+    image: phzzk-msa-eureka-service:latest # 실제 빌드된 이미지 이름으로 변경
+    container_name: eureka-service
+    ports:
+      - "8761:8761" # 고정 포트 노출
+    networks:
+      - msa-network
+    # Eureka는 Config Service를 바라보지만, 자기 자신도 Config가 필요할 수 있으므로 설정
+    environment:
+      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+    depends_on:
+      - config-service
+    restart: always
+
+  gateway-service:
+    image: phzzk-msa-gateway-service:latest # 실제 빌드된 이미지 이름으로 변경
+    container_name: gateway-service
+    ports:
+      - "8000:8000" # 클라이언트 요청을 위한 유일한 외부 노출 포트
+    networks:
+      - msa-network
+    environment:
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+    depends_on:
+      - eureka-service
+    restart: always
+
+  # ----------------------------------------------------
+  # 2. 비즈니스 서비스 (무작위 포트, Eureka/Config 사용)
+  # ----------------------------------------------------
+
+  # user-service:
+  #   image: phzzk-msa-user-service:latest # 실제 빌드된 이미지 이름으로 변경
+  #   container_name: user-service
+  #   # 'port: 0' 전략을 사용하므로 외부 포트를 노출하지 않음
+  #   networks:
+  #     - msa-network
+  #   environment:
+  #     - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-service:8761/eureka
+  #     - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+  #   depends_on:
+  #     - eureka-service
+  #   restart: always
+
+  # video-service:
+  #   image: phzzk-msa-video-service:latest # 실제 빌드된 이미지 이름으로 변경
+  #   container_name: video-service
+  #   networks:
+  #     - msa-network
+  #   environment:
+  #     - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-service:8761/eureka
+  #     - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+  #   depends_on:
+  #     - eureka-service
+  #   restart: always
+
+  # chat-service:
+  #   image: phzzk-msa-chat-service:latest # 실제 빌드된 이미지 이름으로 변경
+  #   container_name: chat-service
+  #   networks:
+  #     - msa-network
+  #   environment:
+  #     - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-service:8761/eureka
+  #     - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+  #   depends_on:
+  #     - eureka-service
+  #   restart: always
+
+  # ----------------------------------------------------
+  # 3. Ingest 서비스 (Nginx + Spring Boot Wrapper)
+  #    - Sidecar 패턴 대신 독립 서비스로 정의 (Docker Compose 편의성)
+  # ----------------------------------------------------
+
+  # 3-1. RTMP 처리 및 HLS/DASH 파일 생성 담당 (Port 1935 노출)
+  nginx-rtmp:
+    image: tiangolo/nginx-rtmp # arut/nginx-rtmp-module 기반의 인기 이미지 사용
+    container_name: phzzk-msa-nginx-rtmp
+    # RTMP 수신 포트만 외부에 노출
+    ports:
+      - "1935:1935"
+    networks:
+      - msa-network
+    # 핵심 설정 파일인 nginx.conf를 볼륨 마운트
+    volumes:
+      - ./phzzk-msa-ingest-service/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./streams:/tmp/hls # HLS/DASH 출력 경로
+    restart: always
+
+  # 3-2. MSA 관리자 역할 (Eureka 등록, 헬스 체크)
+  # ingest-wrapper:
+  #   image: phzzk-msa-ingest-wrapper:latest # 실제 빌드된 Spring Boot 이미지 이름으로 변경
+  #   container_name: ingest-wrapper
+  #   # 'port: 0' 전략을 사용하므로 외부 포트를 노출하지 않음
+  #   networks:
+  #     - msa-network
+  #   environment:
+  #     - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-service:8761/eureka
+  #     - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+  #     # Nginx의 HTTP/관리 포트(8080)를 바라보도록 설정 (선택적)
+  #     - NGINX_RTMP_HOST=nginx-rtmp
+  #     - NGINX_RTMP_PORT=8080 
+  #   depends_on:
+  #     - eureka-service
+  #     - nginx-rtmp # Nginx 컨테이너가 먼저 실행되어야 함
+  #   restart: always
